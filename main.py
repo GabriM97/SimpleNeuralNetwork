@@ -23,24 +23,27 @@ def mse_loss(y_true, y_pred):
 class Neuron:
 
     # init of weights
-    def __init__(self, weights, bias, name, layer):
+    def __init__(self, weights, bias, output_neuron, seq, layer="/"):        
+        if output_neuron:
+            self.name = "O{}".format(str(seq))
+        else:
+            self.name = "L{}N{}".format(str(layer), str(seq))
+        
+        self.h_layer = layer
+        self.output_neuron = output_neuron
         self.weights = weights
         self.bias = bias
-        self.h_layer = layer
-        self.name = "L{}N{}".format(str(layer), str(name))
         
     # maths operations
     def feedforward(self, inputs):
         # { (inputs * weights) + bias }, then use activation function
         tot = np.dot(self.weights, inputs) + self.bias
-        return sigmoid(tot)
-    
-    def setName(self, name):
-        self.name = name
+        return tot, sigmoid(tot)
         
     def printInfo(self):
         print("\nName:", self.name)
-        print("H_Layer:", self.h_layer)
+        if not self.output_neuron:
+            print("H_Layer:", self.h_layer)
         print("Weights:", self.weights)
         print("Bias:", self.bias)
 
@@ -51,41 +54,15 @@ class NeuralNetwork:
     def __init__(self, input_dim):
         self.input_dim = input_dim
         
-        #self.init_output()
-        self.output_num = 1
-        #self.init_hidden_layers()
-        self.h_layers = 1
+        self.init_output()
+        #self.output_num = 1
+        self.init_hidden_layers()
+        #self.h_layers = 1
         
         self.init_neurons()
         self.init_output_neuron()
         self.printInfo()
        
-    def feedforward(self, data):
-        self.out_h = []
-        self.outputs = []
-        
-        print("\n--- FEED FORWARD ---")
-        idx = 0
-        for x in data:
-            self.out_h = x
-            for layer in range(self.h_layers):
-                print("\nLayer", layer)
-                n_neur = self.num_neurons[layer+1]
-                print("Num_Neurons:", n_neur)
-                result = []
-                for neuron in self.neurons[idx:n_neur]:
-                    result.append(neuron.feedforward(self.out_h))
-                self.out_h = result
-                print("out_h:", self.out_h)
-                idx += n_neur
-            
-            print("\nOUTPUT LAYER")
-            result = []
-            for neuron in self.neurons[-self.output_num:]:
-                result.append(neuron.feedforward(self.out_h))
-            self.outputs = result
-            return self.outputs
-    
     # INITIALIZATION FUNCTIONS
     def init_output(self):
         print("\nHow many Output?")
@@ -114,7 +91,7 @@ class NeuralNetwork:
                 self.bias.append(np.random.normal())
                 
                 # init Neuron
-                neur = Neuron(self.weights[-n_prev_neur:], self.bias[-1], neuron, layer)
+                neur = Neuron(self.weights[-n_prev_neur:], self.bias[-1], False, neuron, layer)
                 self.neurons.append(neur)
     
     def init_output_neuron(self):
@@ -126,27 +103,26 @@ class NeuralNetwork:
             self.bias.append(np.random.normal())
             
             # init Neuron
-            neur = Neuron(self.weights[-n_prev_neur:], self.bias[-1], neuron, len(self.num_neurons)-1)
-            neur.setName("O"+str(output))
+            neur = Neuron(self.weights[-n_prev_neur:], self.bias[-1], True, output)
             self.neurons.append(neur)
 
     # PRINT INFO OF NETWORK  
     def printInfo(self):
         print("\n--- Network Info ---")
         print("\nInput_Dimension:", self.input_dim)
-        print("Num_of_Outputs:", self.output_num)
         print("Num_of_Hidden_Layers:", self.h_layers)
-        for layer in range(self.h_layers):
-            print("\n -H_Layer " + str(layer+1) + ":")
-            print("Neurons:", self.num_neurons[layer+1])
+        print("Num_of_Outputs:", self.output_num)
         
-        print("\n")
-        print("Weights:", self.weights)
-        print("Bias:", self.bias, "\n")
+        for layer in range(self.h_layers):
+            print("\n-H_Layer " + str(layer) + ":")
+            print(" > Neurons:", self.num_neurons[layer+1])
+        
+        #print("\nWeights:", self.weights)
+        #print("Bias:", self.bias, "\n")
         
         index = 0
         for layer in range(self.h_layers):
-            print("\n\n -- #LAYER " + str(layer+1) + " --")
+            print("\n\n -- #HIDDEN LAYER " + str(layer) + " --")
             num_neurons_per_layer = self.num_neurons[layer+1]
             for neuron in self.neurons[index:index+num_neurons_per_layer]:
                 neuron.printInfo()
@@ -156,10 +132,59 @@ class NeuralNetwork:
         for neuron in self.neurons[-self.output_num:]:
             neuron.printInfo()
 
+    def feedforward(self, x):
+        out_h = []
+        h_values = []
+        x_sums = []
+        idx = 0
+        
+        print("--- FEED FORWARD ---")
+        out_h = x
+        for layer in range(self.h_layers):
+            print("\nLayer", layer)
+            n_neur = self.num_neurons[layer+1]
+            print("Num_Neurons:", n_neur)
+            result = []
+            for neuron in self.neurons[idx:idx+n_neur]:
+                x_value, tot = neuron.feedforward(out_h)
+                x_sums.append(x_value)
+                result.append(tot)
+                #h_values.append(tot)    # THIS
+            out_h = result
+            h_values.append(out_h)
+            print("h_values:", h_values)
+            idx += n_neur
+        
+        print("\nOUTPUT LAYER")
+        result = []
+        for neuron in self.neurons[-self.output_num:]:
+            x_value, tot = neuron.feedforward(out_h)
+            x_sums.append(x_value)
+            result.append(tot)
+            #h_values.append(tot)
+            
+        h_values.append(result)
+        print("h_values:", h_values)
+        return x_sums, h_values, result
+    
+
     # TRAINING FUNCTION
     def train(self, data, y_trues):
-        print("training")
+        learn_rate = 0.1
+        epochs = 1000   #number of loops
         
+        print("\n\n--- TRAINING ---")
+        i = 0
+        for x, y_true in zip(data, y_trues):
+            i+=1
+            x_sums, h_values, y_pred = self.feedforward(x)
+            
+            print("\nData:", x, y_true)
+            print("x_sums:", x_sums)
+            print("h_values:", h_values)
+            print("y_pred:", y_pred)
+
+
 
 # --- MAIN METHODS ---
 
@@ -184,7 +209,7 @@ def basicNetwork():
     input_dim = 2
     network = NeuralNetwork(input_dim)
     
-    print("output_value:", network.feedforward(data))
+    network.train(data, y_trues)
     
     
 # --- TEST MSE ---  
