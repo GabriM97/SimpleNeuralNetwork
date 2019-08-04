@@ -1,6 +1,7 @@
 # Neural Network - Simple example
 
 import numpy as np
+import pickle
 
 round_digits = 4
 
@@ -352,10 +353,36 @@ class NeuralNetwork:
                 y_preds = np.apply_along_axis(self.feedforward, 1, data)
                 loss = mse_loss(y_trues, y_preds)
                 print("Epoch {} - Loss: {}".format(epoch, loss))
+        
                 
+    def saveData(self, filename="./network_datas.pkl"):
+        datas = [self.weights, self.bias]
+        try:
+            with open (filename, "wb") as f:
+                pickle.dump(datas, f)
+        except IOError:
+            print("\nError trying to Save data.")
+            return -1
+    
+        print("\nWeights and Biases saved!")
+        return 0
+
+
+    def loadData(self, filename="./network_datas.pkl"):        
+        try:
+            with open(filename, "rb") as f:
+                weights, biases = pickle.load(f)
+        except IOError:
+            print("\nError trying to Load data.")
+            return -1       
+        
+        print("\nWeights and Biases loaded!")
+        self.weights = weights
+        self.bias = biases
+        return 0
 
 # --- MAIN METHODS ---
-
+                
 def basicNetwork():
     print("\n\n--- EXAMPLE 2: basic network ---\n")
     
@@ -378,7 +405,9 @@ def basicNetwork():
     network = NeuralNetwork(input_dim)
     
     network.train(data, y_trues)
-    #network.printInfo()
+    network.printInfo()
+    #network.saveData()
+    #network.loadData()
     
     # Make some predictions
     emily = np.array([-7, -3])
@@ -389,7 +418,7 @@ def basicNetwork():
     print("\nEmily:", pred_emily, ("F" if pred_emily[0] > 0.5 else "M"))
     print("Frank:", pred_frank, ("F" if pred_frank[0] > 0.5 else "M"))
     
-    
+
 # --- TEST MSE ---  
 def test_mse():
     print("\n\n--- EXAMPLE 3: test MSE Loss ---\n")
