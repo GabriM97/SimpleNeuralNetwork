@@ -38,6 +38,9 @@ class Neuron:
     
     def setWeights(self, weights):
         self.weights = weights
+        
+    def setBias(self, bias):
+        self.bias = bias
     
     # maths operations
     def feedforward(self, inputs):
@@ -61,8 +64,8 @@ class NeuralNetwork:
         
         #self.init_output()
         self.output_num = 1
-        #self.init_hidden_layers()
-        self.h_layers = 2
+        self.init_hidden_layers()
+        #self.h_layers = 2
         
         self.init_neurons()
         self.init_output_neuron()
@@ -111,7 +114,13 @@ class NeuralNetwork:
             neur = Neuron(self.weights[-n_prev_neur:], self.bias[-1], True, output)
             self.neurons.append(neur)
 
+    def setNetworkWeight(self, pos, new_value):
+        self.weights[pos] = new_value
 
+    def setNetworkBias(self, pos, new_value):
+        self.bias[pos] = new_value
+    
+    
     # PRINT INFO OF NETWORK  
     def printInfo(self):
         print("\n--- Network Info ---")
@@ -139,12 +148,12 @@ class NeuralNetwork:
             neuron.printInfo()
 
     def feedforward(self, x, loss_calc=True):
+        #print("\n- FEED FORWARD -")
         out_h = []
         h_values = []
         x_sums = []
         idx = 0
         
-        #print("\n\n--- FEED FORWARD ---")
         out_h = x
         for layer in range(self.h_layers):
             #print("\nLayer", layer)
@@ -176,12 +185,12 @@ class NeuralNetwork:
             return x_sums, h_values, result
     
     def partial_derivatives(self, x, y_true, y_pred, x_sums, h_values):
-        print("\n- PARTIAL DERIVATIVES -")
+        #print("\n- PARTIAL DERIVATIVES -")
         derivatives = []    #array used to return all the values
         
         d_L_d_ypred = -2 * (y_true - y_pred)   #y_pred is an array, could be containing multiple values
         derivatives.append(d_L_d_ypred)
-        print("d_L_d_ypred:", d_L_d_ypred)
+        #print("\nd_L_d_ypred:", d_L_d_ypred)
         
         d_h_d_w = []
         d_h_d_b = []
@@ -202,17 +211,17 @@ class NeuralNetwork:
             
             index+=num_neur                    
             inputs = h_values[layer]
-            derivatives.append(d_h_d_w)
-            derivatives.append(d_h_d_b)
-        print("d_h_d_w:", d_h_d_w)
-        print("d_h_d_b:", d_h_d_b)
+            
+        derivatives.append(d_h_d_w)
+        derivatives.append(d_h_d_b)
+        #print("d_h_d_w:", d_h_d_w)
+        #print("d_h_d_b:", d_h_d_b)
             
         # Partial derivatives OUTPUT LAYER
         d_ypred_d_w = []
         d_ypred_d_b = []
         d_ypred_d_h = []
         #print("\nOutput Layer")
-        #inputs = h_values[-2]    #do not need this
         for neuron in self.neurons[-self.output_num:]:
             dy_dw = []
             for val in inputs:
@@ -231,39 +240,89 @@ class NeuralNetwork:
         derivatives.append(d_ypred_d_w)
         derivatives.append(d_ypred_d_b)
         derivatives.append(d_ypred_d_h)
-        print("d_ypred_d_w:", d_ypred_d_w)
-        print("d_ypred_d_b:", d_ypred_d_b)
-        print("d_ypred_d_h:", d_ypred_d_h)
+        #print("d_ypred_d_w:", d_ypred_d_w)
+        #print("d_ypred_d_b:", d_ypred_d_b)
+        #print("d_ypred_d_h:", d_ypred_d_h)
+        
         return derivatives
 
     def update_w_b(self, learn_rate, d_L_d_ypred, d_h_d_w, d_h_d_b, d_ypred_d_w, d_ypred_d_b, d_ypred_d_h):
-        print("\n- UPDATE WEIGHTS AND BIASES -")
+        #print("\n- UPDATE WEIGHTS AND BIASES -")
         index = 0
         neur_cnt = 0
+        pos = 0
         for layer in range(self.h_layers):
-            print("\nLayer", layer)
+            #print("\n\nLayer", layer)
             num_neur = self.num_neurons[layer+1]
+            last_layer_neur_cnt = 0
             for neuron in self.neurons[index:index+num_neur]:
+                #print("\n Neuron", neur_cnt)
                 new_weights = []
-                print("\n", neuron)
+                weight_cnt = 0
                 for weight in neuron.weights:
-                    print("weight:", weight)
-                    print("weights_before:", neuron.weights)
-                    new_value = learn_rate
-                    #new_weights.append()
+                    if(layer == self.h_layers-1):
+                        decr_val = learn_rate * d_L_d_ypred[0] * d_h_d_w[neur_cnt][weight_cnt] * d_ypred_d_h[0][last_layer_neur_cnt]
+                    else:
+                        decr_val = learn_rate * d_L_d_ypred[0] * d_h_d_w[neur_cnt][weight_cnt]
+                    new_val = weight - decr_val
+                    #print(" decr_val_weight:", decr_val)
+                    new_weights.append(round(new_val, round_digits))
+                    self.setNetworkWeight(pos, round(new_val, round_digits))
+                    weight_cnt+=1
+                    pos+=1
+                neuron.setWeights(new_weights)
+                #print(" new_weights:", neuron.weights)
                 
-                print("weights_after:", neuron.weights)
+                # New Bias
+                decr_val = learn_rate * d_L_d_ypred[0] * d_h_d_b[neur_cnt]
+                new_val = neuron.bias - decr_val
+                #♦print(" decr_val_bias:", decr_val)
+                neuron.setBias(round(new_val,round_digits))
+                self.setNetworkBias(neur_cnt, round(new_val,round_digits))
+                #print(" new_bias:", neuron.bias)
                 
+                neur_cnt+=1
+                if(layer == self.h_layers-1):
+                    last_layer_neur_cnt+=1
             index+=num_neur
+        
+        # OUTPUT LAYER
+        #print("\n\nOutput Layer")
+        neur_cnt = 0
+        pos_bias = len(self.bias) - self.output_num
+        for neuron in self.neurons[-self.output_num:]:
+            new_weights = []
+            weight_cnt = 0
+            for weight in neuron.weights:
+                decr_val = learn_rate * d_L_d_ypred[0] * d_ypred_d_w[neur_cnt][weight_cnt]
+                new_val = weight - decr_val
+                new_weights.append(round(new_val, round_digits))
+                self.setNetworkWeight(pos, round(new_val, round_digits))
+                weight_cnt+=1
+                pos+=1
+            neuron.setWeights(new_weights)
+            #print(" new_weights:", neuron.weights)
+            
+            # New Bias
+            decr_val = learn_rate * d_L_d_ypred[neur_cnt] * d_ypred_d_b[neur_cnt]
+            new_val = neuron.bias - decr_val
+            #print("decr_val_bias:", decr_val)
+            neuron.setBias(round(new_val,round_digits))
+            self.setNetworkBias(pos_bias, round(new_val,round_digits))
+            #print(" new_bias:", neuron.bias)
+            
+            pos_bias+=1
+            neur_cnt+=1
 
     # TRAINING FUNCTION
     def train(self, data, y_trues):
         learn_rate = 0.1
-        epochs = 1   #number of loops
+        epochs = 1000   #number of loops
         
         print("\n\n--- TRAINING ---")
         for epoch in range(epochs):
             for x, y_true in zip(data, y_trues):
+                #print("\n\n-- NEW DATA --")
                 x_sums, h_values, y_pred = self.feedforward(x, False)
                 #print("\nData:", x, y_true)
                 #print("x_sums:", x_sums)
@@ -278,14 +337,19 @@ class NeuralNetwork:
                 d_ypred_d_w = derivatives[3]
                 d_ypred_d_b = derivatives[4]
                 d_ypred_d_h = derivatives[5]
+                #print("d_L_d_ypred:", d_L_d_ypred)
+                #print("d_h_d_w:", d_h_d_w)
+                #print("d_h_d_b:", d_h_d_b)
+                #print("d_ypred_d_w:", d_ypred_d_w)
+                #print("d_ypred_d_b:", d_ypred_d_b)
+                #print("d_ypred_d_h:", d_ypred_d_h)
                 
                 #Update weights and biases
                 self.update_w_b(learn_rate, d_L_d_ypred, d_h_d_w, d_h_d_b, d_ypred_d_w, d_ypred_d_b, d_ypred_d_h)
-                
-            if epoch % 2 == 0:
-                print("\n\nLoss calculation")
+            
+            if epoch % 10 == 0:
+                print("\n- LOSS CALCULATION -")
                 y_preds = np.apply_along_axis(self.feedforward, 1, data)
-                print(y_pred)
                 loss = mse_loss(y_trues, y_preds)
                 print("Epoch {} - Loss: {}".format(epoch, loss))
                 
@@ -297,8 +361,8 @@ def basicNetwork():
     
     data = np.array([
       [-2, -1],  # Alice
-      [25, 6],   # Bob
-      [17, 4],   # Charlie
+      [25, 16],   # Bob
+      [17, 9],   # Charlie
       [-15, -6], # Diana
     ])
     
@@ -314,6 +378,16 @@ def basicNetwork():
     network = NeuralNetwork(input_dim)
     
     network.train(data, y_trues)
+    #network.printInfo()
+    
+    # Make some predictions
+    emily = np.array([-7, -3])
+    frank = np.array([20, 2])
+    
+    pred_emily = network.feedforward(emily)
+    pred_frank = network.feedforward(frank)
+    print("\nEmily:", pred_emily, ("F" if pred_emily[0] > 0.5 else "M"))
+    print("Frank:", pred_frank, ("F" if pred_frank[0] > 0.5 else "M"))
     
     
 # --- TEST MSE ---  
@@ -324,7 +398,6 @@ def test_mse():
     y_pred = np.array([0,0,0,0])
 
     print("MSE Loss:", mse_loss(y_true, y_pred))
-    
     
 # --- MAIN ---
     
